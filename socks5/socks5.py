@@ -147,7 +147,7 @@ def do_confirm_request(client, addr):
     return s
 
 def do_listen():
-    socks5.bind(("127.0.0.1", 1990))
+    socks5.bind(("127.0.0.1", 1080))
     socks5.listen(10)
     print "listen on port 1080....."
     while True:
@@ -170,30 +170,4 @@ if __name__ == "__main__":
         t.start()
     for t in _t:
         t.join()
-    
-    
-        
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-
-
-
     
