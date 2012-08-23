@@ -7,3 +7,5 @@ lab
 http://www.ibaiyang.org/2012/08/18/redesign-socks5-proxy-framework/
 
 注意在传输数据的时，要处理socket各种异常错误，比如Connection reset by peer.
+
+在编写网络应用程序时，对每一个关于网路的（socket）的系统调用，都要处理异常。因为很难预测客户端的请求情况，
