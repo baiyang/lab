@@ -12,6 +12,7 @@ class Connection:
         self.is_server = is_server
 
 READ_THREAD = 3
+PORT        = 2001
 
 wait_queue = []
 ready_queue = []
@@ -19,7 +20,9 @@ read_queue = []
 
 mutex_wait = threading.Lock()
 mutex_read = threading.Lock()
+mutex_no_empty = threading.Lock()
 
+cond_empty = threading.Condition( mutex_no_empty )
 cond_read = threading.Condition( mutex_read )
 
 def do_select():
@@ -59,13 +62,18 @@ def do_select():
                             remove_index.append( i )
                 except timeout:
                     print "timeout"
-                    pass
                 except error, msg:
                     print msg
                     remove_index.append( i )
+                    
+            # wait util last read_queue has been done
+            cond_empty.acquire()
+            while len(read_queue):
+                cond_empty.wait()
+            cond_empty.release()
+                
             # push into read_queue first
             cond_read.acquire()
-            del read_queue[:]
             for i in read_index:
                 read_queue.insert( 0, ready_queue[i] )
             if read_queue:
@@ -92,6 +100,9 @@ def do_handle():
                 print "read queue:", len(read_queue)
                 conn = read_queue.pop()
             except IndexError:
+                cond_empty.acquire()
+                cond_empty.notify_all()
+                cond_empty.release()
                 cond_read.wait()
         cond_read.release()
         try:
@@ -105,19 +116,27 @@ def do_handle():
             pass
 
 def do_confirm_request(client, addr):
-    req = client.recv(512)
+    try:
+        req = client.recv(512)
+        if req[0] != "\x05":
+            client.close()
+            return None
+            
+        client.send("\x05\x00")
+        req = client.recv(512)
+        req_cp = [e for e in req] # to list
 
-    if req[0] != "\x05":
+        req_cp[1] = "\x00"
+        if req[1] != "\x01": # connect command
+            req_cp[1] = "\x07"
+    except error, msg:
+        print msg
         client.close()
         return None
-    
-    client.send("\x05\x00")
-    req = client.recv(512)
-    req_cp = [e for e in req] # to list
-    
-    req_cp[1] = "\x00"
-    if req[1] != "\x01": # connect command
-        req_cp[1] = "\x07"
+    except IndexError:
+        print "Index Error"
+        client.close()
+        return None
 
     try:
         if req[3] == "\x03":
@@ -145,9 +164,7 @@ def do_confirm_request(client, addr):
     return s
 
 def do_listen():
-    socks5.bind(("127.0.0.1", 1998))
-    socks5.listen(10)
-    print "listen on port 1080....."
+    print "Listen on port %s....." % (PORT)
     while True:
         client, addr = socks5.accept()
         server = do_confirm_request(client, addr)
@@ -159,16 +176,19 @@ def do_listen():
             mutex_wait.release()
         else:
             print "Connection failed."
-            
+          
 if __name__ == "__main__":
+    socks5.bind(("127.0.0.1", PORT))
+    socks5.listen(10)
     _t = []
-    _t.append( threading.Thread( target =  do_listen  ) )
     _t.append( threading.Thread( target = do_select ) )
     for i in xrange(READ_THREAD):
         _t.append( threading.Thread( target = do_handle ) )
     for t in _t:
         t.daemon = True
         t.start()
+    # start to listen on port
+    do_listen()
     for t in _t:
         t.join()
     
