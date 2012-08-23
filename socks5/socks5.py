@@ -11,7 +11,7 @@ class Connection:
         self.client = c
         self.is_server = is_server
 
-READ_THREAD = 5
+READ_THREAD = 3
 
 wait_queue = []
 ready_queue = []
@@ -30,6 +30,8 @@ def do_select():
         del wait_queue[:]
         mutex_wait.release()
 
+        print "ready_queue: ", len(ready_queue)
+        
         rlist = [conn.server for conn in ready_queue]
         rlist.extend( [conn.client for conn in ready_queue] )
 
@@ -39,29 +41,36 @@ def do_select():
             remove_index = []
             read_index = []
             for i, conn in enumerate(ready_queue):
-                if conn.server in r:
-                    conn.is_server = True
-                    probe = conn.server.recv(1, MSG_PEEK)
-                    if probe:
-                        read_index.append( i )
-                    else:
-                        remove_index.append( i )
-                
-                if conn.client in r:
-                    conn.is_server = False
-                    probe = conn.client.recv(1, MSG_PEEK)
-                    if probe:
-                        read_index.append( i )
-                    else:
-                        remove_index.append( i )
+                try:
+                    if conn.server in r:
+                        conn.is_server = True
+                        probe = conn.server.recv(1, MSG_PEEK)
+                        if probe:
+                            read_index.append( i )
+                        else:
+                            remove_index.append( i )
+                    
+                    if conn.client in r:
+                        conn.is_server = False
+                        probe = conn.client.recv(1, MSG_PEEK)
+                        if probe:
+                            read_index.append( i )
+                        else:
+                            remove_index.append( i )
+                except timeout:
+                    print "timeout"
+                    pass
+                except error, msg:
+                    print msg
+                    remove_index.append( i )
             # push into read_queue first
             cond_read.acquire()
+            del read_queue[:]
             for i in read_index:
                 read_queue.insert( 0, ready_queue[i] )
             if read_queue:
                 cond_read.notify_all()
             cond_read.release()
-
             # delete all of closed connection
             next_index = []
             for i, conn in enumerate( ready_queue ):
@@ -80,6 +89,7 @@ def do_handle():
         cond_read.acquire()
         while not conn:
             try:
+                print "read queue:", len(read_queue)
                 conn = read_queue.pop()
             except IndexError:
                 cond_read.wait()
@@ -95,7 +105,6 @@ def do_handle():
             pass
 
 def do_confirm_request(client, addr):
-    print "confirm ...", addr
     req = client.recv(512)
 
     if req[0] != "\x05":
@@ -106,58 +115,50 @@ def do_confirm_request(client, addr):
     req = client.recv(512)
     req_cp = [e for e in req] # to list
     
+    req_cp[1] = "\x00"
     if req[1] != "\x01": # connect command
         req_cp[1] = "\x07"
-        client.send( "".join(req_cp) )
-        return None
 
-    if req[3] == "\x03":
-        domain = req[5: 5 + ord(req[4])]
-        try:
-            domain = gethostbyname( domain )
-        except:
-            req_cp[1] = "\x04"
-            client.send( "".join(req_cp) )
-            client.close()
-            return None
-        port = struct.unpack(">H", req[5 + ord(req[4]):])
-    elif req[3] == "\x01":
-        domain = inet_ntoa( req[4: 8] )
-        port = struct.unpack(">H", req[8:])
-    else:
-        req_cp[1] = "\x01"
-        client.send( "".join(req_cp) )
-        client.close()
-        return None
-    
     try:
+        if req[3] == "\x03":
+            domain = req[5: 5 + ord(req[4])]
+            domain = gethostbyname( domain )
+            port = struct.unpack(">H", req[5 + ord(req[4]):])
+        elif req[3] == "\x01":
+            domain = inet_ntoa( req[4: 8] )
+            port = struct.unpack(">H", req[8:])
+        else:
+            req_cp[1] = "\x01"
         s = socket(AF_INET, SOCK_STREAM, 0)
-        print domain, port
-        s.connect((domain, port[0]))
-    except:
-        s.close()
+        s.connect( (domain, port[0]) )
+    except herror:
+        req_cp[1] = "\x04"
+    except error:
         req_cp[1] = "\x03"
+    
+    if req_cp[1] != "\x00":
         client.send( "".join(req_cp) )
         client.close()
         return None
-
-    print "connection built"
-    req_cp[1] = "\x00"
+    print domain, port[0]
     client.send( "".join(req_cp) )
     return s
 
 def do_listen():
-    socks5.bind(("127.0.0.1", 1080))
+    socks5.bind(("127.0.0.1", 1998))
     socks5.listen(10)
     print "listen on port 1080....."
     while True:
         client, addr = socks5.accept()
-        print addr 
         server = do_confirm_request(client, addr)
         if server:
+            client.settimeout(1)
+            server.settimeout(1)
             mutex_wait.acquire()
             wait_queue.append( Connection(server, client, 0) )
             mutex_wait.release()
+        else:
+            print "Connection failed."
             
 if __name__ == "__main__":
     _t = []
@@ -170,4 +171,30 @@ if __name__ == "__main__":
         t.start()
     for t in _t:
         t.join()
+    
+    
+        
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
+
+
+
     
