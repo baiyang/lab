@@ -62,8 +62,8 @@ def do_select():
                             read_index.append( i )
                         else:
                             remove_index.append( i )
-                except timeout:
-                    print "timeout"
+                except timeout, msg:
+                    print msg
                 except error, msg:
                     print msg
                     remove_index.append( i )
@@ -99,7 +99,6 @@ def do_handle():
         cond_read.acquire()
         while not conn:
             try:
-                print "read queue:", len(read_queue)
                 conn = read_queue.pop()
             except IndexError:
                 cond_empty.acquire()
@@ -135,8 +134,8 @@ def do_confirm_request(client, addr):
         print msg
         client.close()
         return None
-    except IndexError:
-        print "Index Error"
+    except IndexError, msg:
+        print msg
         client.close()
         return None
 
@@ -153,10 +152,8 @@ def do_confirm_request(client, addr):
         port = struct.unpack(">H", req[p_index:])[0]
         s = create_connection( (domain, port) )
     except gaierror, msg:
-        print msg
         req_cp[1] = "\x04"
     except error, msg:
-        print msg
         req_cp[1] = "\x03"
     
     if req_cp[1] != "\x00":
@@ -194,29 +191,4 @@ if __name__ == "__main__":
     for t in _t:
         t.join()
     
-    
-        
-    
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-
-
-
-    
