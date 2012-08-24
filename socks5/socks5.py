@@ -1,9 +1,11 @@
-from collections import namedtuple
 from socket import *
 import threading 
 import select, struct
 
 socks5 = socket(AF_INET, SOCK_STREAM, 0)
+
+# timeout for each new socket
+setdefaulttimeout( 1 )
 
 class Connection:
     def __init__(self, c, s, is_server):
@@ -11,8 +13,8 @@ class Connection:
         self.client = c
         self.is_server = is_server
 
-READ_THREAD = 3
-PORT        = 2001
+READ_THREAD = 5
+PORT        = 1990
 
 wait_queue = []
 ready_queue = []
@@ -20,9 +22,9 @@ read_queue = []
 
 mutex_wait = threading.Lock()
 mutex_read = threading.Lock()
-mutex_no_empty = threading.Lock()
+mutex_empty = threading.Lock()
 
-cond_empty = threading.Condition( mutex_no_empty )
+cond_empty = threading.Condition( mutex_empty )
 cond_read = threading.Condition( mutex_read )
 
 def do_select():
@@ -139,27 +141,29 @@ def do_confirm_request(client, addr):
         return None
 
     try:
-        if req[3] == "\x03":
-            domain = req[5: 5 + ord(req[4])]
-            domain = gethostbyname( domain )
-            port = struct.unpack(">H", req[5 + ord(req[4]):])
-        elif req[3] == "\x01":
-            domain = inet_ntoa( req[4: 8] )
-            port = struct.unpack(">H", req[8:])
-        else:
-            req_cp[1] = "\x01"
-        s = socket(AF_INET, SOCK_STREAM, 0)
-        s.connect( (domain, port[0]) )
-    except herror:
+        if req[3] == "\x03":  # domain 
+            p_index = 5 + ord(req[4])
+            domain = req[5: p_index]
+        elif req[3] == "\x01":# ipv4
+            p_index = 8
+            domain = inet_aton(req[4: 8])
+        else:                 # ipv6
+            p_index = 20
+            domain = inet_ptoa(req[4: 20])   
+        port = struct.unpack(">H", req[p_index:])[0]
+        s = create_connection( (domain, port) )
+    except gaierror, msg:
+        print msg
         req_cp[1] = "\x04"
-    except error:
+    except error, msg:
+        print msg
         req_cp[1] = "\x03"
     
     if req_cp[1] != "\x00":
         client.send( "".join(req_cp) )
         client.close()
         return None
-    print domain, port[0]
+    print domain, port
     client.send( "".join(req_cp) )
     return s
 
@@ -169,8 +173,6 @@ def do_listen():
         client, addr = socks5.accept()
         server = do_confirm_request(client, addr)
         if server:
-            client.settimeout(1)
-            server.settimeout(1)
             mutex_wait.acquire()
             wait_queue.append( Connection(server, client, 0) )
             mutex_wait.release()
