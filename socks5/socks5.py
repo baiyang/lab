@@ -8,7 +8,7 @@ socks5 = socket(AF_INET, SOCK_STREAM, 0)
 setdefaulttimeout( 1 )
 
 class Connection:
-    def __init__(self, c, s, is_server):
+    def __init__(self, s, c, is_server):
         self.server = s
         self.client = c
         self.is_server = is_server
