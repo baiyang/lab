@@ -145,10 +145,10 @@ def do_confirm_request(client, addr):
             domain = req[5: p_index]
         elif req[3] == "\x01":# ipv4
             p_index = 8
-            domain = inet_aton(req[4: 8])
+            domain = inet_ntoa(req[4: 8])
         else:                 # ipv6
             p_index = 20
-            domain = inet_ptoa(req[4: 20])   
+            domain = inet_ntop(req[4: 20])
         port = struct.unpack(">H", req[p_index:])[0]
         s = create_connection( (domain, port) )
     except gaierror, msg:
