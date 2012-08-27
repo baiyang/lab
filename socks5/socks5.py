@@ -131,11 +131,9 @@ def do_confirm_request(client, addr):
         if req[1] != "\x01": # connect command
             req_cp[1] = "\x07"
     except error, msg:
-        print msg
         client.close()
         return None
     except IndexError, msg:
-        print msg
         client.close()
         return None
 
