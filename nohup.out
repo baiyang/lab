@@ -1,0 +1,6 @@
+/Users/apple/upload/tmp/py_pb/smallseg-read-only/valleyhe_server.py: line 1: ﻿#!/usr/bin/python: No such file or directory
+/Users/apple/upload/tmp/py_pb/smallseg-read-only/valleyhe_server.py: line 4: import: command not found
+from: can't read /var/mail/SimpleXMLRPCServer
+from: can't read /var/mail/smallseg
+/Users/apple/upload/tmp/py_pb/smallseg-read-only/valleyhe_server.py: line 7: syntax error near unexpected token `('
+/Users/apple/upload/tmp/py_pb/smallseg-read-only/valleyhe_server.py: line 7: `seg = SEG()'
